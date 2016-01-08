@@ -1,25 +1,181 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+author: "Lee Parayno"
+date: "January 7, 2016"
+output: html_document
+keep_md : true
 ---
+#Personal Activity Monitoring Device Analysis
 
+## Global Options
+
+These options will set the default location for the plots to be inside the "figure" directory.
+
+```{r setoptions}
+library(knitr)
+opts_chunk$set(fig.path = "figure/")
+```
 
 ## Loading and preprocessing the data
+```{r loading}
+activityFile = "activity.csv"
 
+## Function to unzip the data file
+setup <- function() {
+    unzip("activity.zip")
+}
+
+if (!file.exists(activityFile)) {
+    setup()
+}
+
+## Load the data file
+activity = read.csv(file = activityFile)
+
+## Create a version of the data frame with NAs removed
+cleanActivity = activity[!is.na(activity$steps),]
+```
 
 
 ## What is mean total number of steps taken per day?
 
+Aggregate all the step values by the date of the value, by calculating the sum of the steps.
 
+```{r stepAverage}
+## Sum all the steps by day
+stepAverage <- aggregate(activity$steps, by=list(date=activity$date), FUN=sum)
+
+names(stepAverage) = c("date","steps")
+
+## Remove the days with no steps
+stepAverage <- stepAverage[!is.na(stepAverage$steps),]
+
+stepAverage
+```
+
+Histogram of total number of steps taken each day
+
+```{r histAverageTotalStepsPerDay}
+hist(stepAverage$steps, breaks=10, plot = TRUE, main = "Frequency of Total Daily Steps", xlab = "Steps")
+```
 
 ## What is the average daily activity pattern?
 
+Mean steps taken per day
+```{r meanStepsPerDay}
+averageSteps <- mean(stepAverage$steps)
+averageSteps
+```
 
+Median steps taken per day
+```{r medianStepsPerDay}
+medianSteps <- median(stepAverage$steps)
+medianSteps
+```
+
+Mean steps per interval
+```{r meanStepsPerInterval}
+meanIntervalSteps <- aggregate(cleanActivity$steps, by=list(date=cleanActivity$interval), FUN=mean)
+names(meanIntervalSteps) = c("interval","steps")
+meanIntervalSteps <- meanIntervalSteps[!is.na(meanIntervalSteps$steps),]
+meanIntervalSteps
+```
+
+Average (Mean) Steps Per Interval
+```{r meanStepsPerIntervalPlot}
+plot(meanIntervalSteps, type = 'l', main = "Average Steps Per Interval (5 min)")
+```
+
+Interval with Highest Average Steps
+```{r highestAverageStepInterval}
+meanStepsPerInterval <- aggregate(cleanActivity$steps, by=list(date=cleanActivity$interval), FUN=mean)
+names(meanStepsPerInterval) = c("interval","steps")
+intervalWithHighestMeanSteps <- meanStepsPerInterval[meanStepsPerInterval$steps == max(meanStepsPerInterval$steps),]
+intervalWithHighestMeanSteps
+```
 
 ## Imputing missing values
 
+All the intervals where activity data was not available (NA), can be substituted with a logical replacement.  The average steps in a particular interval is a reasonable substitute for missing values, as you can assume that a person would have ideally logged the average amount of steps in an interval, within a given standard deviation
 
+```{r imputedMissingActivity}
+imputedActivity <- activity
+
+for (i in 1:nrow(imputedActivity)) {
+    if (is.na(imputedActivity[i,1])) {
+        imputedActivity[i,1] <- meanStepsPerInterval[meanStepsPerInterval$interval == imputedActivity[i,3],2]
+    }
+}
+
+imputedStepAverage <- aggregate(imputedActivity$steps, by=list(date=imputedActivity$date), FUN=sum)
+names(imputedStepAverage) = c("date","steps")
+```
+
+Histogram of Imputed Steps
+
+```{r histogramImputedMissingSteps}
+#png(filename="imputed_step_average.png", width = 480, height = 480)
+hist(imputedStepAverage$steps, breaks=10, plot = TRUE, main = "Frequency of Imputed Total Daily Steps", xlab = "Steps")
+#dev.off()
+```
+
+Average Steps with Imputed Values
+```{r meanStepsWithImputedValues}
+imputedAverageSteps <- mean(imputedStepAverage$steps)
+imputedAverageSteps
+```
+
+Median Steps with Imputed Values
+```{r medianStepsWithImputedValues}
+imputedMedianSteps <- median(imputedStepAverage$steps)
+imputedMedianSteps
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+We need to determine the day of the week for each date of activity, in order to find out whether the activity was on a weekday or weekend.
+
+Code to determine the weekday or weekend:
+
+```{r convertDateToWeedayWeekend}
+weekdayValues <- weekdays(as.Date(imputedActivity$date))
+
+for (i in 1:length(weekdayValues)) {
+    if (weekdayValues[i] %in% c("Monday","Tuesday","Wednesday","Thursday","Friday")) {
+        weekdayValues[i] <- "weekday"
+    } else {
+        weekdayValues[i] <- "weekend"
+    }
+}
+imputedActivity <- cbind(imputedActivity, weekdayValues)
+
+```
+
+
+Aggregate the steps by interval and by weekday.
+
+```{r aggregateStepsByIntervalDayValue}
+stepsByIntervalByWeekday <- aggregate(imputedActivity$steps, by=list(interval=imputedActivity$interval, weekdayValues=imputedActivity$weekdayValues), FUN=mean)
+names(stepsByIntervalByWeekday) <- c("interval", "weekdayValues","steps")
+```
+
+Plot the time series with the facets set for the weekday types of weekday and weekend.
+
+```{r plotStepsByIntervalDayValue}
+library(ggplot2)
+
+plot <- qplot(interval, steps, data = stepsByIntervalByWeekday, color = weekdayValues, facets = . ~ weekdayValues)
+plot + geom_line() + labs(title = "Steps by Day for Interval") + labs(x = "Interval", y = "Steps")
+```
+
+
+
+
+
+
+
+
+
+
+
+
